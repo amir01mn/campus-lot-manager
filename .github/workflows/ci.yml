@@ -32,7 +32,7 @@ jobs:
       - run: ./mvnw -B verify
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: backend/target/surefire-reports/
@@ -87,7 +87,7 @@ jobs:
         run: docker compose logs --no-color backend
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
