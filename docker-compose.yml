@@ -1,21 +1,70 @@
-# Local infrastructure. Phase 5 adds the backend and frontend services.
+# CampusPark: PostgreSQL + Spring Boot API + nginx-served React app.
+#
+#   docker compose up --build          # whole stack on http://localhost:3000 (demo data, no .env needed)
+#   docker compose up -d postgres      # just the database, for running the backend/frontend from source
+#
+# Every setting below can be overridden from the environment or a .env file (see .env.example). The defaults are
+# for local demos only; the backend's `prod` profile refuses to start with them.
+name: campus-lot-manager
+
 services:
   postgres:
     image: postgres:16
-    container_name: campus-parking-postgres
     environment:
-      POSTGRES_DB: parking
-      POSTGRES_USER: parking
-      POSTGRES_PASSWORD: parking
+      POSTGRES_DB: ${DB_NAME:-parking}
+      POSTGRES_USER: ${DB_USER:-parking}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-parking}
     ports:
-      - "5432:5432"
+      # localhost only, for local development and tools; the backend reaches it on the compose network
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U parking -d parking"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: campus-parking-backend:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-demo}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-parking}
+      DB_USER: ${DB_USER:-parking}
+      DB_PASSWORD: ${DB_PASSWORD:-parking}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-change-me-dev-only-change-me-0123456789}
+      APP_JWT_EXPIRY: ${APP_JWT_EXPIRY:-PT1H}
+      APP_SENSORS_API_KEY: ${APP_SENSORS_API_KEY:-dev-sensor-key}
+      APP_SUPER_MANAGER_EMAIL: ${APP_SUPER_MANAGER_EMAIL:-admin@campus-parking.local}
+      APP_SUPER_MANAGER_PASSWORD: ${APP_SUPER_MANAGER_PASSWORD:-ChangeMe!2024}
+      APP_DEMO_PASSWORD: ${APP_DEMO_PASSWORD:-Demo#2026}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25 -XX:+ExitOnOutOfMemoryError}
+    # Not published: only nginx (frontend) talks to the API.
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_SHOW_DEMO_ACCOUNTS: ${VITE_SHOW_DEMO_ACCOUNTS:-true}
+    image: campus-parking-frontend:local
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "${WEB_PORT:-3000}:8080"
     restart: unless-stopped
 
 volumes:

@@ -3,7 +3,8 @@ import baseConfig from './playwright.config';
 
 /**
  * `npm run screenshots`: captures the README screenshots into ../docs/screenshots against the live demo stack.
- * It first populates the demo through the public API (extra drivers, bookings, sensor readings).
+ * The data comes from the backend's `demo` profile seeders; the spec only adds live sensor readings and flags two spots
+ * (see e2e/support/populateDemo.ts). Use a fresh demo database for the intended picture.
  */
 export default defineConfig({
   ...baseConfig,

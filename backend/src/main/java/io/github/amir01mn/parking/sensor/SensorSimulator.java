@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.SplittableRandom;
 import java.util.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,9 @@ public class SensorSimulator {
         this.bookingRepository = bookingRepository;
         this.clock = clock;
         SensorProperties.Simulator settings = properties.simulator();
-        RandomGenerator random = RandomGenerator.getDefault(); // used only from the scheduler thread
+        // used only from the scheduler thread. SplittableRandom lives in java.base; RandomGenerator.getDefault()
+        // needs the jdk.random module, which slim JRE images (like the Docker runtime) leave out.
+        RandomGenerator random = new SplittableRandom();
         this.generator = new SimulatedReadingGenerator(random, settings.sampleFraction(),
                 settings.coveredOccupancy(), settings.uncoveredOccupancy());
         log.info("Sensor simulator enabled (every {})", settings.interval());

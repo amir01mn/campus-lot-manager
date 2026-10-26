@@ -22,7 +22,8 @@ public class ReferenceCodeGenerator {
         this(new SecureRandom());
     }
 
-    ReferenceCodeGenerator(RandomGenerator random) {
+    /** Uses the given source of randomness (tests and the seeded demo data pass a deterministic one). */
+    public ReferenceCodeGenerator(RandomGenerator random) {
         this.random = random;
     }
 

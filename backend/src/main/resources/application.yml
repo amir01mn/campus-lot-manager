@@ -62,6 +62,8 @@ app:
       visitor: 15.00
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  # The dev defaults below (JWT secret, sensor key, super-manager password) make local runs and the demo work out of
+  # the box. The 'prod' profile refuses to start while any of them is unchanged (see ProductionSafetyCheck).
   jwt:
     # HS256 secret; must be at least 32 bytes. Override in every real deployment.
     secret: ${APP_JWT_SECRET:dev-only-change-me-dev-only-change-me-0123456789}
@@ -105,3 +107,16 @@ app:
 logging:
   level:
     io.github.amir01mn.parking: DEBUG
+
+---
+# Production: real secrets must come from the environment (startup fails fast otherwise), quieter logs, and
+# X-Forwarded-* headers from the reverse proxy are honoured for redirects and generated links.
+spring:
+  config:
+    activate:
+      on-profile: prod
+server:
+  forward-headers-strategy: framework
+logging:
+  level:
+    io.github.amir01mn.parking: INFO

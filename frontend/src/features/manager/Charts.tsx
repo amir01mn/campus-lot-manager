@@ -50,7 +50,7 @@ export function BookingsPerDayChart({ data }: { data: DailyBookings[] }) {
     <>
       <div className="h-64" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -16 }} barCategoryGap={rows.length > 45 ? 1 : '20%'}>
+          <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} barCategoryGap={rows.length > 45 ? 1 : '20%'}>
             <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
             <XAxis dataKey="day" tick={AXIS} tickLine={false} axisLine={false} interval={tickEvery - 1} minTickGap={8} />
             <YAxis allowDecimals={false} tick={AXIS} tickLine={false} axisLine={false} width={40} />

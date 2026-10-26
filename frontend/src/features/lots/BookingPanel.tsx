@@ -133,8 +133,9 @@ export function BookingPanel({
           <h2 className="text-base font-semibold">Your booking</h2>
           {spot ? (
             <div className="mt-3 flex items-center gap-3">
-              <span className="grid h-12 min-w-12 place-items-center rounded-lg bg-accent px-2 font-semibold whitespace-nowrap text-accent-fg">{spot.label}</span>
-              <div className="text-sm">
+              {/* shrink-0: the badge keeps its natural width (e.g. "L12-104"); the text column wraps instead */}
+              <span className="grid h-12 min-w-12 shrink-0 place-items-center rounded-lg bg-accent px-2.5 text-sm font-semibold whitespace-nowrap tabular-nums text-accent-fg">{spot.label}</span>
+              <div className="min-w-0 text-sm">
                 <p className="font-medium">Spot {spot.label}</p>
                 {window && (
                   <p className="text-fg-muted">

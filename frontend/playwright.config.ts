@@ -1,9 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * End-to-end smoke tests against a live stack: the backend must already be running with the `demo` profile
- * (`cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=demo`). The Vite dev server is started
- * here unless one is already listening. Override the UI address with E2E_BASE_URL.
+ * End-to-end smoke tests against a live stack with the backend's `demo` profile. Either run the Compose stack
+ * (`docker compose up -d --build --wait`, then `E2E_BASE_URL=http://localhost:3000 npm run e2e`), or run the
+ * backend from source (`cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=demo`) and let this config
+ * start (or reuse) the Vite dev server. SENSOR_API_KEY overrides the dev sensor key used by the screenshot spec.
  */
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 

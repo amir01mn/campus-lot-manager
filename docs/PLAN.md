@@ -194,20 +194,22 @@ CORS: allow the frontend origin from config (`app.cors.allowed-origins`, default
 
 ## Phases
 
-1. **Foundation**: remove legacy code, scaffold `backend/` (wrapper, pom, config, profiles
+Status: all five phases are complete (October 2026).
+
+1. ✅ **Foundation**: remove legacy code, scaffold `backend/` (wrapper, pom, config, profiles
    `default`/`test`/`demo`), docker-compose with Postgres, Flyway schema + seed, JPA entities +
    repositories, pricing service (pure, unit tested), global error handling, health endpoint,
    Testcontainers base test. Build green.
-2. **Core API**: security + JWT, auth/register/login/me, directory lookup, lots/spots read
+2. ✅ **Core API**: security + JWT, auth/register/login/me, directory lookup, lots/spots read
    endpoints + availability, bookings (create/extend/cancel/checkout/receipt/quote), payments,
    OpenAPI. Unit + integration tests.
-3. **Operations API**: manager and admin endpoints, sensors ingestion + simulator, scheduled
+3. ✅ **Operations API**: manager and admin endpoints, sensors ingestion + simulator, scheduled
    jobs (auto-checkout, overstay/unauthorized detection), notifications via events, analytics.
    Tests.
-4. **Frontend**: React app: auth pages, lot browser with live spot grid, booking flow with price
+4. ✅ **Frontend**: React app: auth pages, lot browser with live spot grid, booking flow with price
    quote, my bookings (extend/cancel/checkout/receipt), notifications, manager dashboard (stats
    charts, lot/spot controls, bookings table), admin managers page. Tests for key components.
-5. **Ship**: Dockerfiles, full `docker-compose.yml`, GitHub Actions CI, README rewrite
+5. ✅ **Ship**: Dockerfiles, full `docker-compose.yml`, GitHub Actions CI, README rewrite
    (overview, screenshots, architecture diagram, run instructions, demo accounts, API docs link,
    design decisions), LICENSE, final consistency pass.
 
@@ -380,3 +382,51 @@ CORS: allow the frontend origin from config (`app.cors.allowed-origins`, default
   `npm run dev`. `npm run screenshots` regenerates `docs/screenshots/*.png`. It first makes the demo look busy using only
   the public API: about 65 extra drivers (directory e-mails plus `@example.com` visitors), bookings for now and the next
   days, sensor readings with the dev sensor key, and a few spots taken out of service by the demo manager.
+- Phase 5: production safety. The `prod` profile check is an `EnvironmentPostProcessor` (`ProductionSafetyCheck`,
+  registered in `META-INF/spring.factories`), so it runs before any bean or database connection exists. It refuses to
+  start while the JWT secret, sensor key or super-manager password still equals its `application.yml` dev default, when
+  the JWT secret is under 32 UTF-8 bytes, or when `demo` is also active. A `FailureAnalyzer` prints the problems as a
+  normal "APPLICATION FAILED TO START" report. A test loads the real `application.yml` so the constants can't drift.
+  `prod` also sets `server.forward-headers-strategy=framework` (behind nginx or a platform proxy) and INFO logging.
+- Phase 5: demo history. `DemoHistorySeeder` (demo profile, runs after `DemoDataSeeder`) writes what the pure
+  `DemoHistoryPlanner` plans:
+  - drivers in five personas (residence students parking overnight, commuting students, faculty, staff, visitors);
+  - 60 days of history and 7 days ahead, shaped by weekdays, Fridays, weekends and Ontario holidays;
+  - favourite spots and home lots per driver.
+  The planner follows the API's rules: no overlapping non-cancelled bookings per spot or driver, durations from 30 min
+  to 24 h, PricingService amounts, a refund exactly when cancelled at least 1 h before the start, nothing dated after
+  now, and confirmed bookings only on bookable spots. Fixed seeds make it deterministic relative to today.
+  The population is 142 drivers rather than the ~40 first suggested. Utilisation is booked hours over 24 h × 130
+  spots, so 40 drivers can reach only about 10% without breaking the one-booking-at-a-time rule; 142 gives 15-26% per
+  lot over 30 days. Student and faculty/staff drivers get directory rows inserted by the seeder (not Flyway), so their
+  tiers resolve as they would on registration. All drivers share the demo password (one BCrypt hash).
+  Idempotency key: whether any planned driver e-mail already exists (the plan never depends on database contents).
+  Rows are written in one transaction with JDBC batch inserts (about 5k bookings and 10k payments in under a second),
+  with bookings ordered by spot id. That is the lock order sensor ingestion uses, so the simulator, which starts
+  5 s after boot, can't deadlock with seeding. `e2e/support/populateDemo.ts` now only posts sensor readings for spots
+  booked right now, adds one stray car, and flags A-012 (maintenance) and B-059 (disabled).
+- Phase 5: `SensorSimulator` uses `SplittableRandom`. `RandomGenerator.getDefault()` needs the `jdk.random` module,
+  which the slim Temurin JRE image doesn't include, so the demo backend crashed on startup in Docker.
+- Phase 5: containers.
+  - Backend: built with the Maven wrapper (`dependency:go-offline` layer, tests skipped because CI runs them),
+    extracted with `-Djarmode=tools extract --layers --launcher`, and run on `eclipse-temurin:17-jre-alpine` as UID
+    10001 with `JAVA_OPTS` (`MaxRAMPercentage=75`). The `HEALTHCHECK` is `wget` on `/actuator/health`. The image
+    defaults to the `prod` profile; Compose overrides it with `demo`.
+  - Frontend: `nginxinc/nginx-unprivileged` (port 8080). `nginx.conf` is an envsubst template, so `BACKEND_URL` can
+    point at another host on a platform.
+  - Security headers come from a snippet included per static location, because a location's own `add_header` would
+    drop inherited ones. Proxied API responses keep Spring Security's headers.
+  - The CSP is `script-src 'self'`. For that, the pre-paint theme script moved from inline in `index.html` to
+    `public/theme-init.js`.
+  - The proxy sends `Host: $http_host` (with the port), so springdoc's server URL is the public origin, and it
+    blanks `Origin`. It honours an upstream `X-Forwarded-Proto`.
+- Phase 5: Compose project name `campus-lot-manager`. Postgres binds to `127.0.0.1` only, and the backend uses
+  `expose`, not `ports`. Every variable has a demo-safe default (so no `.env` is needed), mirrored in `.env.example`.
+  `docker compose up -d postgres` still runs just the database.
+- Phase 5: CI has four jobs: backend (`./mvnw -B verify`), frontend (lint, typecheck, test, build), e2e (Compose
+  `--wait`, Playwright Chromium against :3000, logs and report on failure, `down -v` always) and docker (Buildx with the
+  GitHub Actions cache). `backend/mvnw` is now tracked as executable (100755). Dependabot updates maven, npm (minor and
+  patch grouped), github-actions and docker weekly.
+- Phase 5: the dashboard's bookings-per-day Y axis no longer uses a negative left margin, which clipped three-digit
+  tick labels once the demo had realistic volumes. The lot-detail spot badge is `shrink-0` with the text column
+  `min-w-0`, so long labels such as `L12-104` fit.

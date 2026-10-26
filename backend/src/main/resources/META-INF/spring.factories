@@ -1,0 +1,4 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+io.github.amir01mn.parking.config.ProductionSafetyCheck
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+io.github.amir01mn.parking.config.InsecureConfigurationFailureAnalyzer
