@@ -239,5 +239,45 @@ CORS: allow the frontend origin from config (`app.cors.allowed-origins`, default
 - Problem `type` URIs are `urn:campus-parking:problem:<slug>`; 422 responses carry a machine-readable `code`.
 - `test` profile config lives in `src/test/resources/application-test.yml`; the Testcontainers Postgres is a
   JVM-wide singleton shared by all integration tests (no `withReuse`, so nothing outlives the build).
-- TODO (Phase 2/3): demo users (one per type + a manager) come from a `demo`-profile seeder, not SQL.
-  Directory rows `student.demo@my.yorku.ca`, `faculty.demo@yorku.ca`, `staff.demo@yorku.ca` exist for them.
+- Phase 2: JWT claims are `sub` = user id, `role` = role name (mapped to `ROLE_*`), plus `iss` and `email`. Tokens are
+  validated against the injected `Clock` (30 s skew). Roles are hierarchical via a `RoleHierarchy` bean. Public:
+  `POST /api/auth/{register,login}`, `GET /api/lots/**`, health, api-docs, swagger. `/api/sensors/**` is permitted at
+  the filter chain (Phase 3 adds the X-Sensor-Key filter); `/api/manager/**` needs MANAGER, `/api/admin/**`
+  SUPER_MANAGER, every other `/api/**` USER, anything else is denied. A bad bearer token on a public endpoint is still 401.
+- Phase 2: 401/403 from the filter chain are ProblemDetail JSON (`unauthorized` / `forbidden`), and a 401 carries
+  `WWW-Authenticate: Bearer`. Login failures answer "Invalid email or password." whether or not the e-mail exists, with a
+  dummy BCrypt check for unknown e-mails. Login runs in a read-only transaction and never writes.
+- Phase 2: the password policy also caps passwords at 72 UTF-8 bytes (BCrypt's limit). Whitespace doesn't count as a special
+  character. A password change needs the current password and rejects an unchanged one (422).
+- Phase 2: booking visibility. Non-owners who aren't managers get **404** for any booking endpoint, so booking ids don't
+  leak. Managers (and super managers) can view, cancel and get receipts for any booking, but extend and checkout are
+  owner-only and a manager gets 403 for them.
+- Phase 2: extend applies the same rules as create: the spot must still be bookable, the total duration stays at most
+  24 h, and spot/user overlaps are checked on `[currentEnd, newEnd)`. The hourly-rate snapshot is kept and the deposit
+  is unchanged. Checkout charges the booked total (no pro-rating for leaving early).
+- Phase 2: concurrency. Concurrent inserts can deadlock on the two exclusion constraints (Postgres `40P01`, seen in tests).
+  So create and extend lock the user row and then the spot row (`SELECT ... FOR UPDATE`, always in that order) before
+  the overlap checks. The losing request gets the friendly 409. Exclusion violations and lock failures that still occur map
+  to 409.
+- Phase 2: reference codes are `CP-` plus 6 SecureRandom characters from `23456789ABCDEFGHJKMNPQRSTUVWXYZ` (no
+  look-alikes). The code is pre-checked with `existsByReferenceCode`, retried up to 10 times, and the unique constraint
+  is the backstop.
+- Phase 2: payments go through `PaymentService.record`, which joins the booking transaction (MANDATORY). A declined
+  gateway result is 422 `PAYMENT_DECLINED` and rolls the booking change back, so the FAILED row is rolled back too.
+  Phase 3+ can move it to `REQUIRES_NEW` if failed attempts must be kept.
+- Phase 2: `BookingCompletionService.complete(Booking)` (in the caller's transaction) and `completeIfConfirmed(UUID)` (own
+  transaction, idempotent) are the shared completion path for checkout and Phase 3's auto-checkout. Booking events
+  (`booking.event.*` records) are published synchronously inside the transaction. Listeners should use
+  `@TransactionalEventListener`.
+- Phase 2: paginated responses use our own `PageResponse` record, because Spring Data's `PageImpl` JSON is not a stable API.
+  The quote endpoint validates only the window's shape (end > start, 30 min to 24 h), not that it's in the future.
+- Phase 2: the super manager bootstrap creates the account once (type STAFF) and never modifies an existing account. A blank
+  e-mail or password logs a warning instead of failing startup (`BootstrapProperties` no longer requires them).
+- Phase 2: demo data (profile `demo`, `DemoDataSeeder`). The accounts are student.demo@my.yorku.ca, faculty.demo@yorku.ca,
+  staff.demo@yorku.ca, visitor.demo@example.com and manager.demo@yorku.ca (MANAGER, type STAFF). They share the
+  password `app.demo.password` (default `Demo#2026`, env `APP_DEMO_PASSWORD`). Existing accounts are left alone. Bookings
+  are seeded only while no demo account has any: per customer, 4 past COMPLETED (DEPOSIT+FINAL), 1 CANCELLED with
+  REFUND and 1 CONFIRMED tomorrow (DEPOSIT). Seeded payments use `SEED-...` provider references and bypass the gateway.
+- Phase 2 tests: the integration context replaces the clock with a `@Primary` `MutableClock`. API tests clean bookings,
+  payments, notifications and non-super-manager users before and after each test. The test JWT expiry is PT12H, so
+  tests that move the clock forward keep valid tokens.

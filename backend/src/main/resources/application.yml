@@ -80,6 +80,9 @@ app:
   sensors:
     simulator:
       enabled: true
+  demo:
+    # Shared password of the seeded demo accounts (see DemoDataSeeder). Demo use only.
+    password: "${APP_DEMO_PASSWORD:Demo#2026}"
 logging:
   level:
     io.github.amir01mn.parking: DEBUG

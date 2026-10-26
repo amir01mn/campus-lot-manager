@@ -2,6 +2,8 @@
 app:
   jwt:
     secret: test-secret-test-secret-test-secret-0123456789
+    # long enough that tests moving the clock forward a few hours keep their tokens
+    expiry: PT12H
   sensors:
     api-key: test-sensor-key
   bootstrap:

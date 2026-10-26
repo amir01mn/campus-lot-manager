@@ -57,8 +57,16 @@ class ApplicationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void everythingElseIsDeniedUntilJwtSecurityExists() throws Exception {
-        mockMvc.perform(get("/api/lots")).andExpect(status().isForbidden());
-        mockMvc.perform(get("/actuator/env")).andExpect(status().isForbidden());
+    void openApiDeclaresBearerJwtScheme() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"));
+    }
+
+    @Test
+    void protectedAndUnlistedEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
     }
 }

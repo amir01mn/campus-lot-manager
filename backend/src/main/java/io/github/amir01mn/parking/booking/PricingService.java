@@ -22,6 +22,11 @@ public class PricingService {
         this.properties = Objects.requireNonNull(properties, "properties");
     }
 
+    /** ISO 4217 currency of every amount. */
+    public String currency() {
+        return properties.currency();
+    }
+
     public BigDecimal hourlyRate(UserType type) {
         return Money.of(properties.rates().forType(Objects.requireNonNull(type, "type")));
     }

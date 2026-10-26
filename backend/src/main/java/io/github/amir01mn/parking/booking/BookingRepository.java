@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -58,9 +59,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     boolean existsByReferenceCode(String referenceCode);
 
+    /** Booking with its user, spot and lot fetched in one query (for detail views and authorization). */
+    @EntityGraph(attributePaths = {"user", "spot", "spot.lot"})
+    Optional<Booking> findDetailedById(UUID id);
+
+    @EntityGraph(attributePaths = {"spot", "spot.lot"})
     Page<Booking> findByUserId(UUID userId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"spot", "spot.lot"})
     Page<Booking> findByUserIdAndStatus(UUID userId, BookingStatus status, Pageable pageable);
+
+    long countByUserId(UUID userId);
 
     /** CONFIRMED bookings whose end has passed, for the auto-checkout job. */
     List<Booking> findByStatusAndEndTimeLessThanEqual(BookingStatus status, Instant cutoff);

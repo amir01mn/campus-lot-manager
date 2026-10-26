@@ -1,7 +1,6 @@
 package io.github.amir01mn.parking.common;
 
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
 import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.List;
@@ -16,6 +15,8 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,7 +37,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     /** Postgres SQLSTATE for a unique-constraint violation. */
     static final String SQLSTATE_UNIQUE_VIOLATION = "23505";
 
-    private static final String TYPE_PREFIX = "urn:campus-parking:problem:";
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /** A single invalid field or parameter in a 400 response. */
@@ -114,6 +114,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "The request conflicts with existing data.");
     }
 
+    @ExceptionHandler(AuthenticationException.class)
+    public ProblemDetail handleAuthentication(AuthenticationException ex) {
+        String detail = ex instanceof BadCredentialsException ? "Invalid email or password."
+                : "Authentication is required to access this resource.";
+        return problem(HttpStatus.UNAUTHORIZED, "unauthorized", "Unauthorized", detail);
+    }
+
     @ExceptionHandler({ForbiddenException.class, AccessDeniedException.class})
     public ProblemDetail handleForbidden(RuntimeException ex) {
         String detail = ex instanceof ForbiddenException ? ex.getMessage() : "You are not allowed to do this.";
@@ -143,10 +150,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private static ProblemDetail problem(HttpStatus status, String type, String title, String detail) {
-        ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, detail);
-        pd.setType(URI.create(TYPE_PREFIX + type));
-        pd.setTitle(title);
-        return pd;
+        return Problems.of(status, type, title, detail);
     }
 
     @Nullable
