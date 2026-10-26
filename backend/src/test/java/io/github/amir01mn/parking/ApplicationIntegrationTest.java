@@ -31,7 +31,7 @@ class ApplicationIntegrationTest extends AbstractIntegrationTest {
     void flywayAppliesAllMigrations() {
         MigrationInfo[] applied = flyway.info().applied();
 
-        assertThat(applied).extracting(info -> info.getVersion().getVersion()).containsExactly("1", "2");
+        assertThat(applied).extracting(info -> info.getVersion().getVersion()).containsExactly("1", "2", "3");
         assertThat(Arrays.stream(applied).map(MigrationInfo::getState))
                 .allMatch(state -> state == MigrationState.SUCCESS);
         assertThat(flyway.info().pending()).isEmpty();
@@ -62,6 +62,18 @@ class ApplicationIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"));
+    }
+
+    @Test
+    void openApiDeclaresSensorKeySchemeAndTagsOperationsApi() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.securitySchemes.sensorKey.type").value("apiKey"))
+                .andExpect(jsonPath("$.components.securitySchemes.sensorKey.in").value("header"))
+                .andExpect(jsonPath("$.components.securitySchemes.sensorKey.name").value("X-Sensor-Key"))
+                .andExpect(jsonPath("$.paths['/api/sensors/readings'].post.security[0].sensorKey").exists())
+                .andExpect(jsonPath("$.paths['/api/manager/stats'].get.summary").value("Dashboard statistics"))
+                .andExpect(jsonPath("$.paths['/api/notifications'].get.tags[0]").value("Notifications"));
     }
 
     @Test

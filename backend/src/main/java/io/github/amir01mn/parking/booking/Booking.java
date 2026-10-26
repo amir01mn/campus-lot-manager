@@ -76,6 +76,9 @@ public class Booking {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Column(name = "overstay_alerted_at")
+    private Instant overstayAlertedAt;
+
     @Version
     private long version;
 
@@ -127,6 +130,14 @@ public class Booking {
         requireConfirmed();
         this.status = BookingStatus.COMPLETED;
         this.completedAt = Objects.requireNonNull(at, "at");
+    }
+
+    /** Records that an overstay alert was raised for this booking (at most once). */
+    public void markOverstayAlerted(Instant at) {
+        if (overstayAlertedAt != null) {
+            throw new IllegalStateException("Overstay already alerted for booking " + referenceCode);
+        }
+        this.overstayAlertedAt = Objects.requireNonNull(at, "at");
     }
 
     private void requireConfirmed() {
@@ -193,6 +204,10 @@ public class Booking {
 
     public Instant getCompletedAt() {
         return completedAt;
+    }
+
+    public Instant getOverstayAlertedAt() {
+        return overstayAlertedAt;
     }
 
     @Override

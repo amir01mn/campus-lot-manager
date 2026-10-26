@@ -52,4 +52,17 @@ public interface ParkingSpotRepository extends JpaRepository<ParkingSpot, Long> 
     Optional<LotSpotCounts> countSpotsForLot(@Param("lotId") Long lotId);
 
     List<ParkingSpot> findBySensorIdIn(Collection<String> sensorIds);
+
+    /**
+     * Spots for the given sensors with their lots, row-locked in id order ({@code SELECT ... FOR UPDATE}). The fixed
+     * lock order avoids deadlocks between concurrent batches, and the lock serialises sensor writes with manager
+     * updates and bookings on the same spot.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from ParkingSpot s join fetch s.lot where s.sensorId in :sensorIds order by s.id")
+    List<ParkingSpot> findBySensorIdInForUpdate(@Param("sensorIds") Collection<String> sensorIds);
+
+    /** (id, sensorId) of every spot, for the demo sensor simulator. */
+    @Query("select new io.github.amir01mn.parking.lot.SpotSensor(s.id, s.sensorId) from ParkingSpot s order by s.id")
+    List<SpotSensor> findAllSensors();
 }

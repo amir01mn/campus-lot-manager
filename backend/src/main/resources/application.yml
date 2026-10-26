@@ -22,6 +22,11 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  task:
+    scheduling:
+      # auto-checkout, overstay detection and (demo) the sensor simulator must not wait for each other
+      pool:
+        size: 3
 
 server:
   port: ${SERVER_PORT:8080}
@@ -64,6 +69,16 @@ app:
     issuer: campus-parking
   sensors:
     api-key: ${APP_SENSORS_API_KEY:dev-sensor-key}
+    # readings timestamped further than this in the future are not applied
+    max-clock-skew: PT5M
+  jobs:
+    enabled: ${APP_JOBS_ENABLED:true}
+    auto-checkout:
+      interval: PT1M
+    overstay:
+      interval: PT1M
+      grace: PT10M
+      lookback: PT24H
   bootstrap:
     super-manager:
       email: ${APP_SUPER_MANAGER_EMAIL:admin@campus-parking.local}
@@ -79,7 +94,11 @@ spring:
 app:
   sensors:
     simulator:
-      enabled: true
+      enabled: ${APP_SENSOR_SIMULATOR_ENABLED:true}
+      interval: ${APP_SENSOR_SIMULATOR_INTERVAL:PT30S}
+      sample-fraction: 0.25
+      covered-occupancy: 0.85
+      uncovered-occupancy: 0.003
   demo:
     # Shared password of the seeded demo accounts (see DemoDataSeeder). Demo use only.
     password: "${APP_DEMO_PASSWORD:Demo#2026}"

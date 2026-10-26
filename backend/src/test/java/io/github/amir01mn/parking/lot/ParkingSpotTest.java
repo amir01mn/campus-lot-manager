@@ -52,4 +52,19 @@ class ParkingSpotTest {
         assertThat(spot.applySensorReading(false, NOW.plusSeconds(1))).isTrue();
         assertThat(spot.isOccupied()).isFalse();
     }
+
+    @Test
+    void occupiedSinceTracksTheCurrentContinuousOccupancy() {
+        assertThat(spot.getOccupiedSince()).isNull();
+
+        spot.applySensorReading(true, NOW);
+        spot.applySensorReading(true, NOW.plusSeconds(60));
+        assertThat(spot.getOccupiedSince()).isEqualTo(NOW);
+
+        spot.applySensorReading(false, NOW.plusSeconds(120));
+        assertThat(spot.getOccupiedSince()).isNull();
+
+        spot.applySensorReading(true, NOW.plusSeconds(180));
+        assertThat(spot.getOccupiedSince()).isEqualTo(NOW.plusSeconds(180));
+    }
 }

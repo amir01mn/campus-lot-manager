@@ -181,15 +181,15 @@ class AuthIntegrationTest extends AbstractApiIntegrationTest {
                 .andExpect(jsonPath("$.type").value("urn:campus-parking:problem:forbidden"));
 
         String managerToken = registerManager("boss@example.com");
-        getWithToken("/api/manager/stats", managerToken).andExpect(status().isNotFound()); // allowed; Phase 3
+        getWithToken("/api/manager/stats", managerToken).andExpect(status().isOk());
         getWithToken("/api/admin/managers", managerToken).andExpect(status().isForbidden());
 
         String superToken = login(SUPER_EMAIL, SUPER_PASSWORD);
         getWithToken("/api/users/me", superToken)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("SUPER_MANAGER"));
-        getWithToken("/api/manager/stats", superToken).andExpect(status().isNotFound());
-        getWithToken("/api/admin/managers", superToken).andExpect(status().isNotFound());
+        getWithToken("/api/manager/stats", superToken).andExpect(status().isOk());
+        getWithToken("/api/admin/managers", superToken).andExpect(status().isOk());
     }
 
     @Test

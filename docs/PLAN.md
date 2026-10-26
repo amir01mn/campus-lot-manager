@@ -281,3 +281,62 @@ CORS: allow the frontend origin from config (`app.cors.allowed-origins`, default
 - Phase 2 tests: the integration context replaces the clock with a `@Primary` `MutableClock`. API tests clean bookings,
   payments, notifications and non-super-manager users before and after each test. The test JWT expiry is PT12H, so
   tests that move the clock forward keep valid tokens.
+- Phase 3: notifications. `NotificationEventListener` handles every booking and alert event with
+  `@TransactionalEventListener(AFTER_COMMIT)` plus `@Transactional(REQUIRES_NEW)`, so a rolled-back transaction never
+  notifies. A failing listener can't undo the committed change; Spring logs the error. Booking events notify the owner
+  in-app and through `EmailSender` (only implementation: `LoggingEmailSender`). Alert events notify every MANAGER and
+  SUPER_MANAGER in-app only. Alert event records live in `sensor.event` (`OverstayDetected`, `UnauthorizedParkingDetected`)
+  and `lot.event` (`MaintenanceFlagged`), and carry labels and names so listeners don't reload them. Another user's
+  notification id is 404. `read-all` answers `{updated}` and `unread-count` answers `{count}`.
+- Phase 3: sensors. `SensorKeyAuthenticationFilter` runs only inside the security chain (it is not a bean, so it isn't a
+  global servlet filter). It compares SHA-256 digests with `MessageDigest.isEqual`, so the comparison is constant time and
+  hides the key length. A missing or wrong key gets a 401 ProblemDetail; a valid key grants `ROLE_SENSOR`, and
+  `/api/sensors/**` now requires it instead of `permitAll`. The body is `{readings: [...]}` (1–500). Each batch locks its
+  spots `FOR UPDATE` in id order, so it serialises with bookings and manager PATCHes (no optimistic-lock 409s) without
+  deadlocking. Readings are applied in timestamp order. Readings more than `app.sensors.max-clock-skew` (PT5M) in the
+  future are not applied, because they would make every later reading look stale. They are counted in an extra response
+  field, `ignoredFuture`. `unknownSensors` is a sorted, de-duplicated list.
+- Phase 3: unauthorized parking is detected only on an unoccupied -> occupied transition, when no CONFIRMED booking covers
+  the server clock's now. Continued occupied readings are not transitions, so one continuous occupancy alerts once with no
+  extra state. V3 adds `parking_spots.occupied_since` (start of the current occupancy; `SpotResponse.occupiedSince`) and
+  `bookings.overstay_alerted_at`.
+- Phase 3: overstay. A non-cancelled booking (auto-checkout normally completes it first) whose end is more than
+  `app.jobs.overstay.grace` (PT10M) in the past but within `lookback` (PT24H) is an overstay when all of these hold:
+  - its spot is still occupied by an occupancy that began before the booking ended (`occupied_since < end_time`);
+  - no CONFIRMED booking covers now;
+  - no later non-cancelled booking on that spot has started.
+  The job sets `overstay_alerted_at` in the same transaction as the event, so each booking alerts at most once.
+- Phase 3: scheduling. `SchedulingConfig` (`@EnableScheduling`) is active unless `app.jobs.enabled=false`, which the test
+  profile sets; tests call the job beans' `run()` directly. Intervals are `app.jobs.auto-checkout.interval` and
+  `app.jobs.overstay.interval` (PT1M). The scheduler pool size is 3. Auto-checkout runs `completeIfConfirmed` once per id,
+  each in its own transaction, and logs a failure without stopping the run. Jobs assume one API instance; multiple
+  replicas would need ShedLock or similar.
+- Phase 3: the sensor simulator (`demo` profile and `app.sensors.simulator.enabled`) samples `sample-fraction` (0.25) of
+  spots every `interval` (PT30S). A spot covered by a booking reports occupied with p = 0.85, any other spot with
+  p = 0.003 (about one unauthorized alert every few minutes). It calls `SensorService.ingest`, the same service the HTTP
+  endpoint uses. The generation logic is the pure class `SimulatedReadingGenerator`.
+- Phase 3: spots in manager-created lots are labelled `L<lotId>-NNN`, with sensor ids `SNS-L<lotId>-NNN`. The lot id
+  guarantees uniqueness and can't collide with the seeded `SNS-<A|B|C>-NNN` ids. Seeded lots keep their labels. Duplicate
+  lot names (also on rename) are 409.
+- Phase 3: disabling a lot or spot, or flagging maintenance, never cancels existing CONFIRMED bookings. They stay valid,
+  but they can't be extended while the spot is unbookable. The PATCH responses are `{lot|spot, affectedUpcomingBookings}`,
+  where the count covers not-yet-ended CONFIRMED bookings while the target is unbookable (0 otherwise). `MaintenanceFlagged`
+  fires only on a false -> true change.
+- Phase 3: `GET /api/manager/bookings` filters `from`/`to` by overlap with `[from, to)`. `q` is a case-insensitive
+  substring of the reference code or plate, with LIKE wildcards escaped. Results are newest start first, shaped
+  `{booking: BookingResponse, customer: {id, email, firstName, lastName, userType}}`.
+- Phase 3: stats definitions for `[from, to)` (default: the 30 days before now; at most 366 days):
+  - `bookingsCount` and `bookingsByStatus` count bookings that start in the range, whatever their status.
+  - `bookingsPerDay` counts the same bookings by their start date in America/Toronto, zero-filled.
+  - `revenue` is succeeded DEPOSIT + FINAL − REFUND payments created in the range; `revenueByUserType` splits it by the
+    payer's tier (all four tiers are present).
+  - Per-lot utilisation = booked hours of non-cancelled bookings, clipped to the range, divided by (current spot count ×
+    range hours).
+  - Percentages have 1 decimal place.
+  - Everything is computed by aggregate SQL through `NamedParameterJdbcTemplate`.
+- Phase 3: `POST /api/admin/managers` generates a 16-character SecureRandom password with all four character classes and
+  no look-alike characters. It is returned once as `temporaryPassword` and never logged. The tier comes from the
+  directory, and unlisted e-mails get STAFF. `GET /api/admin/managers` is paginated (`PageResponse`) and sorted by name.
+- Phase 3: the demo seeder also adds notifications (each customer's latest completed, cancelled and confirmed booking;
+  two sample alerts for the demo manager) while no demo account has any. This runs independently of the booking seeding,
+  so existing Phase 2 demo databases get them too.

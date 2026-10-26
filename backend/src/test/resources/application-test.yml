@@ -6,6 +6,9 @@ app:
     expiry: PT12H
   sensors:
     api-key: test-sensor-key
+  # no background scheduling in tests: job beans exist and tests call run() directly
+  jobs:
+    enabled: false
   bootstrap:
     super-manager:
       email: super@test.local

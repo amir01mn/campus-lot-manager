@@ -1,6 +1,7 @@
 package io.github.amir01mn.parking.support;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,11 +25,15 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
  * HTTP-level integration tests. Every test starts and ends with clean tables (bookings, payments, notifications,
- * all users except the bootstrapped super manager), reset spot/lot flags and a clock following system time.
+ * all users except the bootstrapped super manager, manager-created lots), reset spot/lot flags and sensor state, and
+ * a clock following system time.
  */
 public abstract class AbstractApiIntegrationTest extends AbstractIntegrationTest {
 
     protected static final String PASSWORD = "Secret#123";
+    protected static final String SUPER_EMAIL = "super@test.local";
+    protected static final String SUPER_PASSWORD = "Test!Passw0rd";
+    protected static final String SENSOR_KEY = "test-sensor-key";
 
     @Autowired
     protected MockMvc mockMvc;
@@ -49,8 +55,11 @@ public abstract class AbstractApiIntegrationTest extends AbstractIntegrationTest
         jdbc.execute("delete from payments");
         jdbc.execute("delete from bookings");
         jdbc.execute("delete from users where role <> 'SUPER_MANAGER'");
+        // lots created through the manager API have SNS-L<lotId>-NNN sensors; seeded lots keep theirs
+        jdbc.execute("delete from parking_spots where sensor_id like 'SNS-L%'");
+        jdbc.execute("delete from parking_lots l where not exists (select 1 from parking_spots s where s.lot_id = l.id)");
         jdbc.execute("update parking_spots set enabled = true, maintenance_required = false, occupied = false, "
-                + "last_sensor_update = null");
+                + "last_sensor_update = null, occupied_since = null");
         jdbc.execute("update parking_lots set enabled = true");
     }
 
@@ -67,6 +76,10 @@ public abstract class AbstractApiIntegrationTest extends AbstractIntegrationTest
 
     protected ResultActions postJson(String url, Object body, String token) throws Exception {
         return mockMvc.perform(jsonRequest(post(url), body).with(bearer(token)));
+    }
+
+    protected ResultActions patchJson(String url, Object body, String token) throws Exception {
+        return mockMvc.perform(jsonRequest(patch(url), body).with(bearer(token)));
     }
 
     protected ResultActions getWithToken(String url, String token) throws Exception {
@@ -106,6 +119,31 @@ public abstract class AbstractApiIntegrationTest extends AbstractIntegrationTest
         register(email, PASSWORD);
         jdbc.update("update users set role = 'MANAGER' where email = ?", email);
         return login(email, PASSWORD);
+    }
+
+    protected String superManagerToken() throws Exception {
+        return login(SUPER_EMAIL, SUPER_PASSWORD);
+    }
+
+    /** One sensor reading as a JSON-ready map. */
+    protected static Map<String, Object> reading(String sensorId, boolean occupied, Instant timestamp) {
+        Map<String, Object> reading = new LinkedHashMap<>();
+        reading.put("sensorId", sensorId);
+        reading.put("occupied", occupied);
+        reading.put("timestamp", timestamp.toString());
+        return reading;
+    }
+
+    /** Posts a batch to the sensor endpoint with the correct key. */
+    protected ResultActions postReadings(List<Map<String, Object>> readings) throws Exception {
+        return mockMvc.perform(jsonRequest(post("/api/sensors/readings"), Map.of("readings", readings))
+                .header("X-Sensor-Key", SENSOR_KEY));
+    }
+
+    /** Notification types of the user with {@code email}, newest first. */
+    protected List<String> notificationTypes(String email) {
+        return jdbc.queryForList("select n.type from notifications n join users u on u.id = n.recipient_id "
+                + "where u.email = ? order by n.created_at desc, n.id desc", String.class, email);
     }
 
     protected long spotId(String sensorId) {

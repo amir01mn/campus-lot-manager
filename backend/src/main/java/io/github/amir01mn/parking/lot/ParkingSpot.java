@@ -47,6 +47,10 @@ public class ParkingSpot {
     @Column(name = "last_sensor_update")
     private Instant lastSensorUpdate;
 
+    /** Start of the current continuous occupancy; {@code null} while the spot is free. */
+    @Column(name = "occupied_since")
+    private Instant occupiedSince;
+
     @Version
     private long version;
 
@@ -67,7 +71,8 @@ public class ParkingSpot {
     }
 
     /**
-     * Applies a sensor reading. Readings older than the last applied one are ignored.
+     * Applies a sensor reading. Readings older than the last applied one are ignored. An unoccupied -> occupied
+     * transition starts a new occupancy ({@link #getOccupiedSince()}); becoming free clears it.
      *
      * @return {@code true} if the reading was applied
      */
@@ -75,6 +80,11 @@ public class ParkingSpot {
         Objects.requireNonNull(readingTime, "readingTime");
         if (lastSensorUpdate != null && readingTime.isBefore(lastSensorUpdate)) {
             return false;
+        }
+        if (occupiedNow && !occupied) {
+            this.occupiedSince = readingTime;
+        } else if (!occupiedNow) {
+            this.occupiedSince = null;
         }
         this.occupied = occupiedNow;
         this.lastSensorUpdate = readingTime;
@@ -119,6 +129,10 @@ public class ParkingSpot {
 
     public Instant getLastSensorUpdate() {
         return lastSensorUpdate;
+    }
+
+    public Instant getOccupiedSince() {
+        return occupiedSince;
     }
 
     @Override

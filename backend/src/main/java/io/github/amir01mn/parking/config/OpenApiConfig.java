@@ -14,6 +14,9 @@ public class OpenApiConfig {
     /** Name of the bearer-JWT scheme referenced by {@code @SecurityRequirement} on protected endpoints. */
     public static final String BEARER_AUTH = "bearerAuth";
 
+    /** Name of the API-key scheme used by the sensor ingestion endpoint. */
+    public static final String SENSOR_KEY = "sensorKey";
+
     @Bean
     public OpenAPI campusParkingOpenApi() {
         return new OpenAPI()
@@ -27,6 +30,11 @@ public class OpenApiConfig {
                         .type(SecurityScheme.Type.HTTP)
                         .scheme("bearer")
                         .bearerFormat("JWT")
-                        .description("Access token returned by POST /api/auth/login")));
+                        .description("Access token returned by POST /api/auth/login"))
+                        .addSecuritySchemes(SENSOR_KEY, new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.HEADER)
+                                .name("X-Sensor-Key")
+                                .description("Shared sensor gateway key (app.sensors.api-key)")));
     }
 }
