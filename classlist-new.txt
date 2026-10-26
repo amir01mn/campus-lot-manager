@@ -1,7 +1,0 @@
-com.company.User
-com.company.Student
-com.company.FacultyMember
-com.company.Manager
-com.company.NonFacultyStaff
-com.company.Visitor
-com.company.StrongPasswordRecognizer 
