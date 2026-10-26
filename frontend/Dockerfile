@@ -12,7 +12,7 @@ ENV VITE_SHOW_DEMO_ACCOUNTS=${VITE_SHOW_DEMO_ACCOUNTS}
 RUN npm run build
 
 # ---- runtime: unprivileged nginx serving the bundle and proxying the API ----
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # Where /api, /swagger-ui and /v3/api-docs are forwarded (the compose service name by default).
 ENV BACKEND_URL=http://backend:8080
 # The official entrypoint renders templates with envsubst (only defined variables, so $uri etc. survive).
