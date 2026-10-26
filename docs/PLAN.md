@@ -340,3 +340,43 @@ CORS: allow the frontend origin from config (`app.cors.allowed-origins`, default
 - Phase 3: the demo seeder also adds notifications (each customer's latest completed, cancelled and confirmed booking;
   two sample alerts for the demo manager) while no demo account has any. This runs independently of the booking seeding,
   so existing Phase 2 demo databases get them too.
+- Phase 4: frontend stack (exact versions pinned in `package-lock.json`): Vite 8.3, React 19.3, React Router 8.5 (library
+  mode, `createBrowserRouter`), TanStack Query 5.104, Tailwind CSS 4.3 (CSS-first `@theme` tokens, class-based dark mode),
+  Recharts 3.10, lucide-react icons, self-hosted Inter (`@fontsource-variable/inter`). Tooling: TypeScript 5.9.3 (strict,
+  `noUncheckedIndexedAccess`), ESLint 10 + typescript-eslint 8 `strictTypeChecked`, Vitest 5 + Testing Library + MSW 3
+  (jsdom), Playwright 1.64. TypeScript stays on 5.9 because typescript-eslint supports `<6.1` and openapi-typescript
+  declares `^5`. `eslint-plugin-jsx-a11y` is left out because it doesn't support ESLint 10 yet; accessibility is covered by
+  role-based Testing Library queries instead.
+- Phase 4: API types are generated from `/v3/api-docs` with openapi-typescript (`npm run gen:api`, backend running) into
+  `src/api/schema.gen.ts`, using `--properties-required-by-default`. springdoc doesn't mark Java record components as
+  required, and without the flag every field would be optional. `src/api/types.ts` widens the few genuinely nullable
+  fields (`cancelledAt`, `completedAt`, `occupiedSince`, `lastSensorUpdate`, notification links, `providerReference`)
+  to `| null`, and makes PATCH bodies `Partial`. Regenerating after a DTO change then surfaces drift as type errors. All
+  calls go through one `fetch` wrapper (`src/api/client.ts`) that throws `ApiError` carrying the ProblemDetail;
+  `src/api/problem.ts` turns it into user copy (422 `code` → message, 400 `errors` → per-field messages).
+- Phase 4: the JWT lives in memory and is mirrored to `sessionStorage` (per tab, cleared when the tab closes). It is
+  dropped on sign-out, on its expiry (timer from `expiresIn`), and on any 401 from a request that carried it. Expiry or a
+  401 sends the user to `/login?reason=expired&next=…`, and only same-app `next` paths are honoured. Sign-out lands on
+  `/login?reason=signed-out` with no `next`. Route guards mirror the backend's role hierarchy.
+- Phase 4: all times are entered and shown in campus time (America/Toronto) whatever the browser zone; conversion uses
+  `Intl` (no date library) and is DST-tested. A booking window is date + start + end in half-hour steps; an end at or
+  before the start means the next day. Money is formatted as CAD with `Intl.NumberFormat('en-CA')`.
+- Phase 4: spot grid states are, in priority order: unavailable (manager-disabled or lot closed), maintenance, booked for
+  the chosen window (bookable but missing from `/availability`), occupied now (sensor sees a car but the spot is free for
+  the window, so it stays bookable), and free. Each state has an icon and a pattern (dashed border or stripes) as well as
+  a colour, and a legend with counts. The grid is an ARIA radio group with roving tabindex and arrow-key navigation. Spots
+  and availability poll every 15 s, lots and stats every 30 s, and the unread-notification count every 30 s.
+- Phase 4: My bookings tabs are derived client-side: CONFIRMED bookings (one request, up to 100) split by start into
+  Upcoming and Active, plus paginated COMPLETED (Past) and CANCELLED. A CONFIRMED booking that has ended waits for
+  auto-checkout under Active. The cancel dialog computes the refund outcome with the backend's rule (refund iff
+  now ≤ start − 1 h) before confirming. The manager dashboard range picker works in campus days and is sent as a
+  half-open `[from, to)` instant range.
+- Phase 4: manager and admin pages are lazy-loaded (`React.lazy`), so Recharts (~100 kB gzip) isn't in the driver bundle.
+  The dev and preview servers proxy `/api`, `/swagger-ui` and `/v3/api-docs` to `VITE_API_PROXY_TARGET` (default
+  `http://localhost:8080`) and strip the `Origin` header, because the browser call is same-origin and the backend's CORS
+  allow-list only matters for real cross-origin callers. Demo sign-in buttons are hidden with
+  `VITE_SHOW_DEMO_ACCOUNTS=false` at build time.
+- Phase 4: `npm run e2e` (Playwright, not part of `npm test`) needs the demo backend running; it starts or reuses
+  `npm run dev`. `npm run screenshots` regenerates `docs/screenshots/*.png`. It first makes the demo look busy using only
+  the public API: about 65 extra drivers (directory e-mails plus `@example.com` visitors), bookings for now and the next
+  days, sensor readings with the dev sensor key, and a few spots taken out of service by the demo manager.
