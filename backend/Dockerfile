@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build: compile with the Maven wrapper and unpack the Spring Boot layers ----
-FROM eclipse-temurin:17-jdk-jammy AS build
+FROM eclipse-temurin:25-jdk-jammy AS build
 WORKDIR /workspace
 
 # Dependencies first, so this layer is reused until pom.xml (or the wrapper) changes.
@@ -16,7 +16,7 @@ RUN ./mvnw -B -q package -Dmaven.test.skip=true \
     && java -Djarmode=tools -jar target/campus-parking-*.jar extract --layers --launcher --destination target/extracted
 
 # ---- runtime: slim JRE, non-root, layered for cache-friendly pulls ----
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
 WORKDIR /app
 
