@@ -1,0 +1,14 @@
+# Profile used by the test suite. The datasource is supplied by Testcontainers (@ServiceConnection).
+app:
+  jwt:
+    secret: test-secret-test-secret-test-secret-0123456789
+  sensors:
+    api-key: test-sensor-key
+  bootstrap:
+    super-manager:
+      email: super@test.local
+      password: Test!Passw0rd
+logging:
+  level:
+    org.testcontainers: INFO
+    io.github.amir01mn.parking: DEBUG

@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: campus-parking
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:parking}
+    username: ${DB_USER:parking}
+    password: ${DB_PASSWORD:parking}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+
+app:
+  time-zone: America/Toronto
+  pricing:
+    currency: CAD
+    rates:
+      student: 5.00
+      faculty: 8.00
+      staff: 10.00
+      visitor: 15.00
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  jwt:
+    # HS256 secret; must be at least 32 bytes. Override in every real deployment.
+    secret: ${APP_JWT_SECRET:dev-only-change-me-dev-only-change-me-0123456789}
+    expiry: ${APP_JWT_EXPIRY:PT1H}
+    issuer: campus-parking
+  sensors:
+    api-key: ${APP_SENSORS_API_KEY:dev-sensor-key}
+  bootstrap:
+    super-manager:
+      email: ${APP_SUPER_MANAGER_EMAIL:admin@campus-parking.local}
+      password: ${APP_SUPER_MANAGER_PASSWORD:ChangeMe!2024}
+      first-name: Super
+      last-name: Manager
+
+---
+spring:
+  config:
+    activate:
+      on-profile: demo
+app:
+  sensors:
+    simulator:
+      enabled: true
+logging:
+  level:
+    io.github.amir01mn.parking: DEBUG
