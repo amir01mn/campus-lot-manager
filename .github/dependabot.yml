@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Major upgrades (Spring Boot 4, Java/Node runtimes, TypeScript 7) are done deliberately.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -13,6 +17,10 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Major upgrades (Spring Boot 4, Java/Node runtimes, TypeScript 7) are done deliberately.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -23,3 +31,7 @@ updates:
       - /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Major upgrades (Spring Boot 4, Java/Node runtimes, TypeScript 7) are done deliberately.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
