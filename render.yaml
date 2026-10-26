@@ -1,0 +1,90 @@
+# Render Blueprint for the hosted CampusPark demo (render.com -> New -> Blueprint -> this repository).
+# Free plan: services sleep after ~15 minutes idle (the first visit then takes about a minute to wake them) and the
+# free database expires after 30 days unless upgraded. Service names fix the public URLs used below; if you rename a
+# service, update BACKEND_URL, BACKEND_HOST_HEADER and APP_CORS_ALLOWED_ORIGINS to match.
+
+databases:
+  - name: campuspark-db
+    plan: free
+    region: ohio
+    postgresMajorVersion: "16"
+    databaseName: parking
+    user: parking
+
+services:
+  # Spring Boot API with seeded demo data (demo profile) but every secret replaced.
+  - type: web
+    name: campuspark-api-amir01mn
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    buildFilter:
+      paths:
+        - backend/**
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: SPRING_PROFILES_ACTIVE
+        value: demo
+      # 512 MB instance: smaller heap share and the serial collector leave room for metaspace and threads.
+      - key: JAVA_OPTS
+        value: "-XX:MaxRAMPercentage=55 -XX:+UseSerialGC -Xss512k -XX:+ExitOnOutOfMemoryError"
+      # Requests arrive through the web service's nginx; honour its X-Forwarded-* headers for generated links.
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: framework
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: https://campuspark-amir01mn.onrender.com
+      - key: DB_HOST
+        fromDatabase:
+          name: campuspark-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: campuspark-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: campuspark-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: campuspark-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: campuspark-db
+          property: password
+      - key: APP_JWT_SECRET
+        generateValue: true
+      - key: APP_SENSORS_API_KEY
+        generateValue: true
+      # Entered in the dashboard when the Blueprint is created; must meet the password policy.
+      - key: APP_SUPER_MANAGER_PASSWORD
+        sync: false
+
+  # nginx serving the React app and forwarding /api, /swagger-ui and /v3/api-docs to the API's public URL.
+  - type: web
+    name: campuspark-amir01mn
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /healthz
+    buildFilter:
+      paths:
+        - frontend/**
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: BACKEND_URL
+        value: https://campuspark-api-amir01mn.onrender.com
+      # Render routes by Host, so the API must be called with its own hostname.
+      - key: BACKEND_HOST_HEADER
+        value: campuspark-api-amir01mn.onrender.com
+      # Build argument: the super manager's password is a real secret here, so hide its one-click button.
+      - key: VITE_SHOW_SUPER_MANAGER_DEMO
+        value: "false"
