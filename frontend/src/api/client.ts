@@ -32,6 +32,15 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * True for errors a sleeping or restarting server produces: no connection, or a gateway error from the proxy in front
+ * of it. These are worth retrying for a while, unlike an error the API itself answered with.
+ */
+export function isServerUnavailable(error: unknown): boolean {
+  if (error instanceof NetworkError) return true;
+  return error instanceof ApiError && (error.status === 502 || error.status === 503 || error.status === 504);
+}
+
 let authToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
 

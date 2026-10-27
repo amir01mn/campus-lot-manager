@@ -24,6 +24,7 @@ import { cn } from '../../lib/cn';
 import { ROLE_LABEL, USER_TYPE_LABEL } from '../../lib/format';
 import { ButtonLink } from '../ui/Button';
 import { Logo } from './Logo';
+import { ServerWakeNotice } from './ServerWakeNotice';
 import { ThemeToggle } from './ThemeToggle';
 
 type NavItem = { to: string; label: string; icon: LucideIcon; role?: Role; end?: boolean };
@@ -191,6 +192,7 @@ export function AppShell() {
         )}
       </header>
       <main id="main" className={cn('flex-1', !bare && 'mx-auto w-full max-w-7xl px-4 py-8 sm:px-6')}>
+        {!bare && <ServerWakeNotice />}
         <Outlet />
       </main>
       {!bare && (
