@@ -35,6 +35,9 @@ export function errorMessage(error: unknown, context: ErrorContext = {}): string
     if (status === 400 && problem.errors?.length) {
       return problem.errors.map((e) => `${humanizeField(e.field)} ${e.message}`).join('. ') + '.';
     }
+    if (status === 502 || status === 503 || status === 504) {
+      return 'The server is starting up. Please try again in a minute.';
+    }
     if (status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
     return problem.detail ?? problem.title ?? 'The request failed.';
   }
